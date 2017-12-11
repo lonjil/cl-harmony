@@ -43,9 +43,10 @@
     (loop for table in tables
           do (execute-non-query db (yield table)))))
 
+(defvar *key* (with-open-file (foo "./key.txt")
+                (read-line foo)))
 (defvar *discord*
-  (make-discord
-   "redacted"))
+  (make-discord *key*))
 
 (defvar *api* "https://discordapp.com/api/v6")
                                         ;(defvar *)
