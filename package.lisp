@@ -5,4 +5,5 @@
         #:drakma #:sqlite
         #:sxql #:bordeaux-threads
         #:livesupport #:split-sequence
-        #:metabang.bind #:queues))
+        #:metabang.bind #:queues)
+  (:shadow eval))

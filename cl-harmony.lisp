@@ -52,9 +52,9 @@
                                         ;(defvar *)
 
 (defun req (uri &key (type :get) content (discord *discord*))
-  (if (eq type :post)
-      (if (eq content nil)
-          (error "NO CONTENT AAGGAGAGAGHGHAHAHADHDGH")))
+  (when (and (member type '(:post :patch :put))
+             (eq content nil))
+      (error "NO CONTENT AAGGAGAGAGHGHAHAHADHDGH"))
   (bind (((:values body-raw
                    status
                    headers
@@ -63,7 +63,7 @@
            (format nil "~a~a" *api* uri)
            :method type
            :content-type "application/json"
-           :user-agent "cl-harmony (Not yet published, 0.1)"
+           :user-agent "cl-harmony (https://github.com/lonjil/cl-harmony, 0.1.0)"
            :additional-headers
            `(("Authorization" . ,(format nil "Bot ~a" (token discord))))
            :content content
@@ -76,15 +76,26 @@
 (defvar *chanrates* nil)
 ;(defun get-remaining)
 
-(defun send-message (channel-id message)
+(defun send-message (channel-id message &key embed)
   "Sends a message, whoa!"
-  (bind (((:values body status headers uri)
-          (req (format nil "/channels/~a/messages" channel-id)
-               :type :post
-               :content (json:encode-json-alist-to-string `((:content . ,message))))))
-    (make-thread (lambda ()
-                   ))
-    (values body status headers uri)))
+  (req (format nil "/channels/~a/messages" channel-id)
+       :type :post
+       :content (json:encode-json-alist-to-string
+                 `((:content . ,message)
+                   .
+                   ,(if embed
+                        `(:embed . ,embed)
+                        nil)))))
+(defun send-embed (channel-id &key message embed)
+  "Sends a message, whoa!"
+  (unless (or message embed) (error "Need at least 1 key"))
+  (req (format nil "/channels/~a/messages" channel-id)
+       :type :post
+       :content (json:encode-json-to-string
+                 (let ((x nil))
+                   (when message (push `(:content . ,message) x))
+                   (when embed (push `(:embed . ,embed) x))
+                   x))))
 (defun get-messages (channel-id)
   "Totally useful docstring, whoa!"
   (req (format nil "/channels/~a/messages" channel-id)))
@@ -104,20 +115,32 @@
 \"hoist\": ~a,
 \"mentionable\": ~a}" name perms color hoist mentionable)))
 
+(defun set-avatar (image &key (format "png" type-p))
+  (declare (ignorable type-p))
+  (req "/users/@me" :type :patch
+                    :content (format nil "{\"avatar\": \"~a\"}"
+                                     (concatenate
+                                      'string
+                                      "data:image/"
+                                      format
+                                      ","
+                                      (base64:usb8-array-to-base64-string
+                                       image)))))
 
 
-(defvar *dispatch* 0) ;receive
-(defvar *heartbeat* 1) ;both
-(defvar *identify* 2) ;send
-(defvar *status* 3) ;send
-(defvar *voice-state* 4) ;send
-(defvar *voice-ping* 5) ;send
-(defvar *resume* 6) ;send
-(defvar *reconnect* 7) ;receive
-(defvar *request-guild-members* 8) ;send
-(defvar *invalid-session* 9) ;receive
-(defvar *hello* 10) ;receive
-(defvar *beat-ack* 11) ;receive
+
+(defconstant +dispatch+ 0) ;receive
+(defconstant +heartbeat+ 1) ;both
+(defconstant +identify+ 2) ;send
+(defconstant +status+ 3) ;send
+(defconstant +voice-state+ 4) ;send
+(defconstant +voice-ping+ 5) ;send
+(defconstant +resume+ 6) ;send
+(defconstant +reconnect+ 7) ;receive
+(defconstant +request-guild-members+ 8) ;send
+(defconstant +invalid-session+ 9) ;receive
+(defconstant +hello+ 10) ;receive
+(defconstant +beat-ack+ 11) ;receive
 
 (defun test (message)
   (handle-ws message))
@@ -151,7 +174,24 @@
 
 (defun handle-ready (event)
   event)
-
+(defun channel-name (chid)
+  (let* ((res (execute-single
+               (db *discord*)
+               "select name from channels where id = ?"
+               chid)))
+    (unless res
+      (let* ((chj (get-channel chid))
+             (ch (json:decode-json-from-string chj))
+             (sid (cdr (assoc :guild--id ch)))
+             (name (cdr (assoc :name ch))))
+        (execute-non-query
+         (db *discord*)
+         "insert into channels (id, server, name) values (?, ?, ?)"
+         chid
+         sid
+         name)
+        (setf res name)))
+    res))
 (defun server-of-channel (channel-id)
   (let* ((res (execute-single
                (db *discord*)
@@ -171,6 +211,25 @@
          name)
         (setf ret sid)))
     ret))
+(defun server-name (sid)
+  (let* ((ret (execute-single
+               (db *discord*)
+               "select name from servers where id = ?"
+               sid)))
+    (if ret
+        ret
+        (let*
+            ((sj (req (format nil "/guilds/~a" sid)))
+             (s (json:decode-json-from-string sj))
+             (name (cdr (assoc :name s)))
+             (owner (cdr (assoc :owner--id s))))
+          (execute-non-query
+           (db *discord*)
+           "insert into servers (id, name, owner) values (?, ?, ?)"
+           sid
+           name
+           owner)
+          name))))
 
 (defun replace-all (string part replacement &key (test #'char=))
   "Returns a new string in which all the occurences of the part
@@ -197,7 +256,7 @@ is replaced with replacement."
     (some (is item) items)))
 
 (defmacro mkcmd (name &body body)
-  (let ((llist '(args chid author)))
+  (let ((llist '(args chid author id)))
     `(cons ,(string name)
            (named-lambda ,name ,llist
              (declare (ignorable ,@llist))
@@ -205,6 +264,17 @@ is replaced with replacement."
               (lambda ()
                 ,@body)
               :name ,(string name))))))
+(defmacro mkpcmd (name &body body)
+  (let ((llist '(args chid author id)))
+    `(cons ,(string name)
+           (named-lambda ,name ,llist
+             (declare (ignorable ,@llist))
+             (make-thread
+              (lambda ()
+                (when (equal id "167023260574154752")
+                  ,@body))
+              :name ,(string name))))))
+
 (defparameter *prefix* "&")
 (defparameter *help*
   (format nil "```~a```"
@@ -214,8 +284,10 @@ is replaced with replacement."
                          '("version: prints the bot version"
                            "ping: measures the time the bot takes to send a message"
                            "fortune [type]: prints a fortune of [type], or any if none is specified"
+                           "fortune -list: lists fortune types"
                            "help: prints this"
-                           "roll [<count>d]<number>: roll <count> dice with <number> faces (one die by default)")))))
+                           "roll <number>: roll a die with <number> faces"
+                           "roll <count>d<number>: roll <count> dice with <number> faces")))))
 
 (defvar *queue* (make-queue :simple-cqueue))
 (defvar *queuecond* (make-condition-variable :name "global queue wait condition"))
@@ -253,7 +325,49 @@ is replaced with replacement."
     (condition-notify *queuecond*)
     (condition-wait cond lock)
     ret))
-
+(defvar *fortune-types* "art
+ascii-art
+computers
+cookie
+debian
+definitions
+drugs
+education
+ethnic
+food
+fortunes
+goedel
+humorists
+kids
+knghtbrd
+law
+linux
+linuxcookie
+literature
+love
+magic
+medicine
+men-women
+miscellaneous
+news
+off
+paradoxum
+people
+perl
+pets
+platitudes
+politics
+riddles
+science
+songs-poems
+sports
+startrek
+theo
+translate-me
+void
+wisdom
+work
+zippy")
 (defun queue-edit-message-async (chid msgid new)
   (make-thread (lambda ()
                  (qpush *queue* (lambda ()
@@ -286,6 +400,64 @@ is replaced with replacement."
                                  (format nil
                                          "Pong! Reply took ~ams."
                                          diff))))
+   (mkpcmd exterminate
+     (queue-message chid (format nil "Extermintor now targeting ~a" args)))
+   (mkpcmd rules4
+     (send-embed chid :embed '((:title . "Information:")
+                               (:color . #x99ccff)
+                               (:description .
+                                "This server has themed roles with colours, as well as roles for those who want to help others with Fortress mode, Adventure mode, and Modding. Type `t!sar get <role>` in <#201869275617558529> to get a role. Replace `<role>` with one of these:
+```
+Elf
+Dwarf
+Human
+Goblin
+Kobold
+ASCII master race
+FortHelper
+AdventureHelper
+ModdingHelper
+```
+Be advised that the last 3 roles will often be pinged.
+To leave a role, do `t!sar remove` in #bot-spam.
+
+Permanent invite to this server: https://discord.gg/CvAEMWx
+Our sister servers:
+Cataclysm DDA: https://discord.gg/DPxUcX7
+Elona: https://discord.gg/PJw67ha"))))
+   (mkpcmd rules3
+     (send-embed chid :embed '((:title . "Rules:")
+                               (:color . #x99ccff)
+                               (:description . "
+1. Try to be respectful. If you feel like someone has crossed a line, please
+ping a moderator."))))
+   (mkpcmd rules2
+     (send-embed chid :embed '((:title . "Rules:")
+                               (:color . #x99ccff)
+                               (:description . "
+1. Try to be respectful. If you feel like someone has crossed a line, please ping a moderator.
+
+2. The rules are guidelines and are up to the staff's interpretation, their decision is final. If you feel you were misjudged, bring it up with another member of the staff.
+
+3. No illegal content, no spamming, no NSFW, no NSFL. External links to such stuff is permissible if it is clearly labeled and inside <> nonembed tags.
+
+4. Don't advertise other Discords without prior moderator permission.
+
+5. When posting articles about abuse, please choose a source that doesn't indentify the victim. Photos should be blurred.
+
+6. <#245937631848824833> is for general DF talk and questions.
+
+7. Some topics belong in <#269076916139458561>. Politics and other divisive topics. Jokes, memes, especially those about the aforementioned topics.
+
+8. Bot usage should happen in <#201869275617558529>."))))
+   (mkpcmd rules
+     (send-embed chid :embed '((:title . "Rules:")
+                               (:fields . (((:name . "1")
+                                            (:value . "Try to be respectful. If you feel like someone has crossed a line, please ping a moderator."))
+                                           ((:name . "2")
+                                            (:value . "The rules are guidelines and are up to the staff's interpretation, their decision is final. If you feel you were misjudged, bring it up with another member of the staff."))
+                                           ((:name . "3")
+                                            (:value . "No illegal content, no spamming, no NSFW, no NSFL. External links to such stuff is permissible if it is clearly labeled and inside <> nonembed tags.")))))))
    (mkcmd ping
      (let* ((pre (get-internal-real-time))
             (retj (send-message chid "Pong!"))
@@ -302,13 +474,15 @@ is replaced with replacement."
    (mkcmd version
      (queue-message-async chid "cl-harmony 0.1 everlasting alpha"))
    (mkcmd fortune
-     (queue-message-async
-      chid
-      (format nil "```~a```"
-              (handler-case
-                  (uiop:run-program `("fortune" ,args)
-                                    :output '(:string :stripped t))
-                (uiop:subprocess-error () (abort))))))
+     (if (equal (car (split-sequence #\Space args)) "-list")
+         (queue-message-async chid (format nil "```~a```" *fortune-types*))
+         (queue-message-async
+          chid
+          (format nil "```~a```"
+                  (handler-case
+                      (uiop:run-program `("fortune" ,args)
+                                        :output '(:string :stripped t))
+                    (uiop:subprocess-error () (abort)))))))
    (mkcmd debug
      (queue-message-async
       chid
@@ -319,23 +493,52 @@ is replaced with replacement."
      (queue-message-async
       chid
       "This is what you do with nazis: https://www.youtube.com/watch?v=f7mRG88KPbA"))
+   (mkcmd nigga
+     (queue-message-async chid "kill nigga"))
+   (mkcmd eval
+     (when (equal id "167023260574154752")
+       (queue-message-async chid (format nil "~a" (cl:eval (read-from-string args))))))
+   (mkcmd echo
+     (when (equal id "167023260574154752")
+       (queue-message-async chid args)))
+   (mkcmd normal
+     (let* ((in (parse-integer args))
+            (u (random 1.0))
+            (v (random 1.0))
+            (x (* (sqrt (* -2 (log u))) (cos (* 2 pi v))))
+            (y (* (sqrt (* -2 (log u))) (sin (* 2 pi v))))
+            (a (* 0.5 (1+ x)))
+            (b (* 0.5 (1+ y))))
+       (declare (ignorable b))
+       (princ x)
+       (terpri)
+       (princ a)
+       (terpri)
+       (queue-message-async chid (format nil "Normally distributed number from given range: ~0f" (* a in)))))
    (mkcmd roll
      (handler-case
          (bind (((count . faces)
                  (parse-dice args))
                 ((:values casts total)
-                 (loop repeat count
-                       for x = (1+ (random faces))
-                       collect x into casts
-                       sum x into total
-                       finally (return (values casts total))))
+                 (cond
+                   ((> count 1000000))
+                   ((> count 300)
+                    (loop repeat count
+                          for x = (1+ (random faces))
+                          sum x into total
+                          finally (return (values nil total))))
+                   (t (loop repeat count
+                          for x = (1+ (random faces))
+                          collect x into casts
+                          sum x into total
+                          finally (return (values casts total))))))
                 (string (cond
                           ((> count 300)
                            (format nil "Total: ~a, mean: ~3$"
                                    total
                                    (/ total count)))
                           ((> count 1)
-                           (format nil "~{~a~^, ~}... Total: ~a, mean: ~3$"
+                           (format nil "~{~a~^, ~}~% Total: ~a, mean: ~3$"
                                    casts
                                    total
                                    (/ total count)))
@@ -344,17 +547,30 @@ is replaced with replacement."
            (queue-message-async chid (format nil "<@~a>: you rolled ~a"
                                              (cdr (assoc :id author))
                                              string)))
-       (error (error)
+       ((or parse-error type-error) (error)
          (warn (format nil "~a" error))
          (queue-message-async chid "lmao are you stupid")
          (abort))))))
 
 (defvar *auto-reconnect* t)
 (defvar *testtt* t)
+
+(defmacro spy-on (name id)
+  `(when (equal id ,id)
+     (with-open-file (f (concatenate 'string "./" ,name "_log.txt")
+                        :direction :output
+                        :if-exists :append
+                        :if-does-not-exist :create)
+       (format f "@~a#~a in ~a#~a: ~a~%"
+               (cdr (assoc :username author))
+               (cdr (assoc :discriminator author))
+               (server-name sid)
+               (channel-name chid)
+               text))))
 (defun handle-message (event)
   (let* ((text (cdr (assoc :content event)))
          (author (cdr (assoc :author event)))
-         ;(id (cdr (assoc :id author)))
+         (id (cdr (assoc :id author)))
          (chid (cdr (assoc :channel--id event)))
          ;(sid (server-of-channel chid))
          (prefix nil))
@@ -376,7 +592,7 @@ is replaced with replacement."
                (cmd (car cmd))
                (fun (cdr (assoc cmd *commands* :test #'equalp))))
           (when fun
-            (funcall fun args chid author)))))))
+            (funcall fun args chid author id)))))))
 (defun event (event type)
   (cond
     ((equal "READY" type) nil)
@@ -390,17 +606,17 @@ is replaced with replacement."
          (op (cdr (assoc :op obj)))
          (data (cdr (assoc :d obj))))
     (cond
-      ((eq op *dispatch*)
+      ((eq op +dispatch+)
        (let ((seq (cdr (assoc :s obj)))
              (type (cdr (assoc :t obj))))
          (setf *seq* seq)
          (event data type)))
-      ((eq op *heartbeat*)
+      ((eq op +heartbeat+)
        (princ "Heartbeat from server")
        (terpri))
-      ((eq op *reconnect*) nil)
-      ((eq op *invalid-session*) (format t "Invalid session: ~a" data))
-      ((eq op *hello*)
+      ((eq op +reconnect+) nil)
+      ((eq op +invalid-session+) (format t "Invalid session: ~a" data))
+      ((eq op +hello+)
        (format t "HELLO: ~a~%" message)
        (wsd:send *client*
                  (format
@@ -420,16 +636,17 @@ is replaced with replacement."
 \"game\": {\"name\": \"Type &help\",\"type\":0},
 \"since\": null,
 \"status\": \"online\"}}}"
-                  *identify*
+                  +identify+
                   (token *discord*))))
-      ((eq op *beat-ack*)
+      ((eq op +beat-ack+)
        (princ "HB ACK")
        (terpri))
-      (t (print "fucker: ")
-         (print message)
+      (t (princ "fucker: ")
+         (princ message)
          (terpri)
          (finish-output)))))
 
+(defvar *reconnect* nil)
 (defun blarp ()
   (setf *client* (wsd:make-client
                   "wss://gateway.discord.gg/?v=6&encoding=json"))
@@ -444,12 +661,9 @@ is replaced with replacement."
             (setf (db *discord*) (connect ":memory:"))
             (ready-db (db *discord*))))
   (wsd:on :close *client*
-          (lambda (&key reason code)
+          (named-lambda dc (&key reason code)
             (format t "Closed cuz '~a' (code=~a).~%" reason code)
-            (setf *running* nil)
-            (when (slot-boundp (db *discord*)
-                               'sqlite::handle)
-              (disconnect (db *discord*)))))
+            (setf *running* nil)))
   (wsd:on :error *client*
           (lambda (error)
             (warn (format t "wsd: ~a" error)))))
