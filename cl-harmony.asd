@@ -9,14 +9,18 @@
                #:sqlite
                #:drakma
                #:flexi-streams
-               #:cl-json
+               #:st-json
                #:livesupport
                #:websocket-driver
                #:bordeaux-threads
                #:split-sequence
                #:cl-interpol
                #:metabang-bind
-               #:queues.simple-cqueue)
+               #:queues.simple-cqueue
+               #:cffi)
   :serial t
   :components ((:file "package")
+               (:file "utils")
+               (:file "discord")
+               (:file "channel-queue")
                (:file "cl-harmony")))
