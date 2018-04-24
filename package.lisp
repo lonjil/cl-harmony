@@ -29,5 +29,6 @@
            cb
            queue-handler
            connect
+           queue-channel-action
            ))
 
