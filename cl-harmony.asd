@@ -23,6 +23,7 @@
   :components ((:file "package")
                (:file "utilities/utils")
                (:file "logger/logger")
+               (:file "base/json-mop-hack")
                (:file "base/constants")
                (:file "base/structures")
                (:file "base/discord-base")

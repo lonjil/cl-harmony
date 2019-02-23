@@ -75,14 +75,6 @@
    (%timestamp :accessor timestamp :initarg :timestamp))
   (:metaclass json-mop:json-serializable-class))
 
-(defmethod json-mop:to-json-value ((value json-mop:json-serializable)
-                                   (json-type (eql :hash-table)))
-  value)
-(defmethod json-mop:json-to-clos ((input vector) class &rest initargs)
-  (map 'list (lambda (x)
-                 (apply #'json-mop:json-to-clos x class initargs))
-       input))
-
 
 (defclass payload ()
   ((%op :accessor op :initarg :op :type number
@@ -95,9 +87,6 @@
        :json-key "t" :json-type :string))
   (:metaclass json-mop:json-serializable-class))
 
-(defun encode (object)
-  (with-output-to-string (s)
-    (json-mop:encode object s)))
 
 (defclass properties ()
   ((%$os :accessor os :initarg :os :type string
@@ -138,3 +127,4 @@
    (%_trace :accessor _trace :initarg :_trace :json-type :list
             :json-key "_trace"))
   (:metaclass json-mop:json-serializable-class))
+
