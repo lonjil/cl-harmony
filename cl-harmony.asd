@@ -1,26 +1,29 @@
 ;;;; cl-harmony.asd
 
 (asdf:defsystem #:cl-harmony
-  :description "Describe cl-harmony here"
-  :author "Your Name <your.name@example.com>"
-  :license "Specify license here"
+  :description "Discord API interaction library."
+  :author "Birk Hirdman <lonjil@gmail.com>"
+  :license "Not yet sure"
   :depends-on (#:alexandria
                #:sxql
                #:sqlite
                #:drakma
                #:flexi-streams
-               #:st-json
-               #:livesupport
                #:websocket-driver
                #:bordeaux-threads
                #:split-sequence
                #:cl-interpol
                #:metabang-bind
                #:queues.simple-cqueue
-               #:cffi)
+               #:serapeum
+               #:pathname-utils
+               #:json-mop
+               #:local-time)
   :serial t
   :components ((:file "package")
-               (:file "utils")
-               (:file "discord")
-               (:file "channel-queue")
-               (:file "cl-harmony")))
+               (:file "utilities/utils")
+               (:file "logger/logger")
+               (:file "base/constants")
+               (:file "base/structures")
+               (:file "base/discord-base")
+               (:file "base/api")))

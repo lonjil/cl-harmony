@@ -1,34 +1,21 @@
 ;;;; package.lisp
 
-(defpackage #:cl-harmony
-  (:use #:cl #:alexandria
-        #:drakma #:st-json
-        #:sqlite
-        #:sxql #:bordeaux-threads
-        #:livesupport #:split-sequence
-        #:metabang.bind #:queues)
-  (:shadow eval connect disconnect)
-  (:export *discord*
-           make-discord
-           send-message
-           send-embed
-           get-messages
-           get-channel
-           edit-message
-           edit-role
-           set-avatar
-           channel-name
-           server-of-channel
-           server-name
-           queue-message-async
-           queue-message
-           queue-edit-message-async
-           blarp
-           *client*
-           *running*
-           cb
-           queue-handler
-           connect
-           queue-channel-action
-           ))
-
+(defpackage #:xyz.lonjil.discord/logger
+  (:use #:cl)
+  (:export #:logm))
+(defpackage #:xyz.lonjil.discord/utilities
+  (:use #:cl)
+  (:export #:get-time))
+(defpackage #:xyz.lonjil.discord/base
+  (:use #:cl)
+  (:shadow #:type)
+  (:local-nicknames (#:s #:serapeum)
+                    (#:pn #:pathname-utils)
+                    (#:l #:xyz.lonjil.discord/logger)
+                    (#:u #:xyz.lonjil.discord/utilities))
+  (:export #:send-message #:id #:channel-id #:guild-id #:author
+           #:member #:content #:user #:nick #:callback #:req
+           #:invite #:username #:discrim #:code #:guild #:channel
+           #:inviter #:uses #:message #:bot? #:add-member-role
+           #:guild-member #:*discord* #:get-invites #:new-discord
+           #:connect #:reconnect-p))
