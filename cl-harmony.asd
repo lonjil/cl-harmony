@@ -3,7 +3,7 @@
 (asdf:defsystem #:cl-harmony
   :description "Discord API interaction library."
   :author "Birk Hirdman <lonjil@gmail.com>"
-  :license "Not yet sure"
+  :license "MIT"
   :depends-on (#:alexandria
                #:sxql
                #:sqlite
