@@ -92,4 +92,5 @@
                                (discord *discord*))
   (declare (ignore around before after))
   (req discord :get `(channels ,channel messages)
-               :params (when limit `(limit ,limit))))
+               :params (when limit `(limit ,limit))
+               :class 'message))
