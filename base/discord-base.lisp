@@ -20,7 +20,8 @@
   (:default-initargs
    :heartbeat-interval 45
    :event-queue (q:make-queue :simple-cqueue)
-   :alive-p nil)
+   :alive-p nil
+   :reconnect-p t)
   (:documentation
    #.(format nil "Represents a connection to the Discord ~
 WebSocket gateway and an abstration over the Discord REST API.")))
