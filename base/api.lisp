@@ -77,7 +77,7 @@
 
 (defun send-message (channel-id content &optional (discord *discord*))
   (req discord :post `(channels ,channel-id messages)
-               :content (format nil "{\"content\":~s}" content)
+               :content (encode (make-instance 'message :content content))
                :class 'message))
 
 (defun get-invites (guild &optional (discord *discord*))
