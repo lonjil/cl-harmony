@@ -12,5 +12,14 @@
   (with-output-to-string (s)
     (json-mop:encode object s)))
 
+(defvar *signal-on-unbound* nil)
 (defmethod slot-unbound (class (obj json-mop:json-serializable) slot)
-  nil)
+  (if *signal-on-unbound*
+      (error (make-condition 'unbound-slot :instance obj))
+      nil))
+
+(defmethod json-mop:encode :around
+    ((object json-mop:json-serializable) &optional (stream *standard-output*))
+  (declare (ignore stream))
+  (let ((*signal-on-unbound* t))
+    (call-next-method)))
