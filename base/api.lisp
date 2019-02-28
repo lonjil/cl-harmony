@@ -87,3 +87,9 @@
 (defun add-member-role (guild user role &optional (discord *discord*))
   (req discord :put `(guilds ,guild members ,user roles ,role)
        :content "{}"))
+
+(defun get-messages (channel &key around before after limit
+                               (discord *discord*))
+  (declare (ignore around before after))
+  (req discord :get `(channels ,channel messages)
+               :params (when limit `(limit ,limit))))

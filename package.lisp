@@ -18,4 +18,4 @@
            #:invite #:username #:discrim #:code #:guild #:channel
            #:inviter #:uses #:message #:bot? #:add-member-role
            #:guild-member #:*discord* #:get-invites #:new-discord
-           #:connect #:reconnect-p))
+           #:connect #:reconnect-p #:name #:get-messages))
