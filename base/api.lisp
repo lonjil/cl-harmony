@@ -98,3 +98,6 @@
   (req discord :get `(channels ,channel messages)
                :params (when limit `(limit ,limit))
                :class 'message))
+(defun get-message (channel message-id &key (discord *discord*))
+  (req discord :get `(channels ,channel messages ,message-id)
+       :class 'message))
