@@ -12,28 +12,32 @@
   (:documentation "Send a request to the discord API"))
 
 (defmethod req ((discord discord-base) type path
-                &key params content parser class &allow-other-keys
+                &key params content parser class fake &allow-other-keys
                 &aux (url (make-req-url path params)))
   (destructuring-bind (body . rest)
       (multiple-value-list
        (drakma:http-request
-        url :method type
-        :content-type "application/json" :user-agent *ua*
+        (or fake url) :method type
+        :content-type "application/json; charset=utf-8"
+        :user-agent *ua*
         :user-agent "cl-harmony (https://github.com/lonjil/cl-harmony, 0.2.0)"
         :additional-headers
         (list (cons "Authorization"
                     (format nil "Bot ~a" (token discord))))
         :content content
-        :content-length (length content)))
+        :external-format-in :utf-8
+        :external-format-out :utf-8
+        ))
     (let* ((body (if (stringp body)
                      body
                      (flexi-streams:octets-to-string body)))
            (body (cond
                    ((= (length body) 0) nil)
+                   ((eq class :raw) body)
                    (t
                     (if class
-                          (json-mop:json-to-clos body class)
-                          (yason:parse body)))))
+                        (json-mop:json-to-clos body class)
+                        (yason:parse body)))))
            (body (if (and parser body)
                      (funcall parser body)
                      body)))
