@@ -1,7 +1,7 @@
 (in-package #:xyz.lonjil.discord/base)
 
 (defvar *api* "https://discordapp.com/api/v6")
-(defvar *ua* "cl-harmony (https://github.com, 0.2.0)")
+(defvar *ua* "cl-harmony (https://github.com/lonjil/cl-harmony, 0.2.0)")
 
 (defun make-req-url (path &optional params)
   (format nil "~a~(~{/~a~}~@[?~{~a=~a~^&~}~]~)" *api* path params))
@@ -49,8 +49,7 @@
    (%reset :accessor reset :initarg :reset)))
 
 (defmethod req ((discord discord) type path
-                &key params content)
-  (declare (ignore params content))
+                &key &allow-other-keys)
   (let* ((now (s:get-unix-time))
          (key (if (= (mod (length path) 2) 1)
                   (reverse (cdr (reverse path)))
@@ -101,3 +100,6 @@
 (defun get-message (channel message-id &key (discord *discord*))
   (req discord :get `(channels ,channel messages ,message-id)
        :class 'message))
+
+(defun delete-message (channel message-id &key (discord *discord*))
+  (req discord :delete `(channels ,channel messages ,message-id)))

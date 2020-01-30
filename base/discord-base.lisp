@@ -130,7 +130,11 @@ WebSocket gateway and an abstration over the Discord REST API.")))
   (when (alive-p discord)
     (setf (alive-p discord) nil)
     (format t "Closed cuz '~a' (code=~a) (thread: ~a)~%"
-            reason code (bt:current-thread))
+            (cond
+              ((stringp reason) reason)
+              ((vectorp reason) (flexi-streams:octets-to-string reason))
+              (t reason))
+            code (bt:current-thread))
     (bt:make-thread
      (lambda ()
        (bt:destroy-thread (heartbeat-thread discord))

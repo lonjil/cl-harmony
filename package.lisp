@@ -19,4 +19,4 @@
            #:inviter #:uses #:message #:bot? #:add-member-role
            #:guild-member #:*discord* #:get-invites #:new-discord
            #:connect #:reconnect-p #:name #:get-messages
-           #:get-message))
+           #:get-message #:delete-message))
