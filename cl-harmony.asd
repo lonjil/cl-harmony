@@ -18,7 +18,8 @@
                #:serapeum
                #:pathname-utils
                #:json-mop
-               #:local-time)
+               #:local-time
+               #:lparallel)
   :serial t
   :components ((:file "package")
                (:file "utilities/utils")

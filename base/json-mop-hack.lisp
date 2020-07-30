@@ -3,6 +3,8 @@
 (defmethod json-mop:to-json-value ((value json-mop:json-serializable)
                                    (json-type (eql :hash-table)))
   value)
+
+
 (defmethod json-mop:json-to-clos ((input vector) class &rest initargs)
   (map 'list (lambda (x)
                  (apply #'json-mop:json-to-clos x class initargs))
